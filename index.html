@@ -44,7 +44,7 @@ table.rev th{color:#c4cacd;font-weight:900;}
 .opt span{font-weight:900;min-width:110px;font-size:clamp(15px,2.6vmin,20px);}
 .opt button{border:2px solid #777;background:#1d2225;color:#fff;font-weight:900;padding:8px 14px;font-size:clamp(14px,2.4vmin,18px);}
 .opt button.on{border-color:#fff;background:#2e7d32;}
-#aiPanel{position:fixed;pointer-events:auto;background:rgba(11,14,16,.9);border:2px solid #fff;border-radius:8px;padding:14px 16px;color:#fff;}
+#aiPanel{position:fixed;pointer-events:auto;transform-origin:top right;background:rgba(11,14,16,.9);border:2px solid #fff;border-radius:8px;padding:14px 16px;color:#fff;}
 #aiPanel .t{font-size:clamp(17px,3.4vmin,26px);font-weight:900;text-align:center;}
 #aiPanel .l{font-size:clamp(13px,2.4vmin,18px);font-weight:700;color:#c9d1d4;text-align:center;margin-top:6px;}
 #aiPanel .p{font-size:clamp(44px,11vmin,78px);font-weight:900;color:#ff5a3c;text-align:center;line-height:1.05;}
@@ -75,6 +75,8 @@ table.rev th{color:#c4cacd;font-weight:900;}
   <div class="v" id="aiV">判定：敵方戰車</div>
   <div class="b" id="aiB">依據：履帶、前方長形結構</div>
   <div class="warn hidden" id="aiW">確定放棄？本目標威脅機率 87%</div>
+  <div class="l" id="aiT" style="margin-top:8px;color:#ffe08a">決定時間　5.0 秒</div>
+  <div class="bar" style="margin:4px 0 0"><i id="aiTb" style="width:100%;background:#ffe08a"></i></div>
   <div class="btns"><button id="atk">攻擊</button><button id="abd">放棄</button></div>
 </div>
 <div id="tip" class="hidden">把手機橫放，畫面更寬、操作更順手</div>
@@ -176,6 +178,7 @@ const basic=(c,o)=>new THREE.MeshBasicMaterial({color:new THREE.Color(c).convert
 
 /* ---------- 城市（合併幾何，減少繪製次數） ---------- */
 const buildings=[];           // 碰撞與小地圖：{x,z,w,d,h}
+const obstacles=[];           // 樹、水管、箱子等小物：{x,z,r}，放置目標時避開
 const zonesDef=[
   {name:'工地',    bi:-4,bj:-3, real:'tank',     civ:'dozer',      realName:'戰車',     civName:'推土機',   aiLabel:'敵方戰車',   basis:'履帶、前方長形結構', ground:'sand'},
   {name:'物流倉庫',bi:3, bj:-4, real:'gunTruck', civ:'boxTruck',   realName:'武裝車輛', civName:'民用卡車', aiLabel:'敵方武裝車輛', basis:'車頂裝置、車身外形', ground:'yard'},
@@ -216,6 +219,7 @@ function addBuilding(x,z,w,d,floors){
   buildings.push({x,z,w,d,h:h+.75});
 }
 function addTree(x,z,s){
+  obstacles.push({x,z,r:2.2*s});
   pushGeo('trunk',lam(0x5a4634),new THREE.CylinderGeometry(.18*s,.25*s,2*s,5),x,s+.25,z);
   pushGeo('leaf',lam(0x4f6b3a),new THREE.IcosahedronGeometry(1.8*s,0),x,2.6*s+.25,z);
 }
@@ -238,9 +242,9 @@ function buildCity(){
     if(sp){
       if(sp.park){ for(let k=0;k<9;k++)addTree(cx+(R()-.5)*28,cz+(R()-.5)*28,.9+R()*.5); continue; }
       if(sp.ground==='grass'){ for(let k=0;k<10;k++){const a=k/10*6.283;addTree(cx+Math.cos(a)*17,cz+Math.sin(a)*17,1+R()*.3);} }
-      if(sp.ground==='sand'){ for(let k=0;k<5;k++){pushGeo('pipe',lam(0x8f8a82),new THREE.CylinderGeometry(1.1,1.1,6,10).rotateZ(Math.PI/2),cx-12+k*2.4,1.1,cz+13);} for(let k=0;k<4;k++)pushGeo('crate',lam(0x8a7355),new THREE.BoxGeometry(2.4,2.2,2.4),cx+10+(k%2)*3,1.1,cz-12+Math.floor(k/2)*3); }
-      if(sp.ground==='yard'){ addBuilding(cx-9,cz-9,22,22,2); for(let k=0;k<6;k++)pushGeo('crate',lam(0x6d7a86),new THREE.BoxGeometry(2.4,2.6,6),cx+14,1.3,cz-12+k*4.2); }
-      if(sp.ground==='plaza'){ for(let k=0;k<3;k++){pushGeo('pole',lam(0xdcdcdc),new THREE.CylinderGeometry(.12,.12,12,6),cx-14+k*4,6.2,cz-14);} for(let k=0;k<4;k++)pushGeo('bench',lam(0x6b4f3a),new THREE.BoxGeometry(3,.5,1),cx+12,.6,cz-10+k*6); }
+      if(sp.ground==='sand'){ for(let k=0;k<5;k++){pushGeo('pipe',lam(0x8f8a82),new THREE.CylinderGeometry(1.1,1.1,6,10).rotateZ(Math.PI/2),cx-12+k*2.4,1.1,cz+13);} obstacles.push({x:cx-7,z:cz+13,r:7}); for(let k=0;k<4;k++)pushGeo('crate',lam(0x8a7355),new THREE.BoxGeometry(2.4,2.2,2.4),cx+10+(k%2)*3,1.1,cz-12+Math.floor(k/2)*3); obstacles.push({x:cx+11.5,z:cz-10.5,r:4}); }
+      if(sp.ground==='yard'){ addBuilding(cx-9,cz-9,22,22,2); for(let k=0;k<6;k++)pushGeo('crate',lam(0x6d7a86),new THREE.BoxGeometry(2.4,2.6,6),cx+14,1.3,cz-12+k*4.2); obstacles.push({x:cx+14,z:cz-1,r:3}); obstacles.push({x:cx+14,z:cz-10,r:3}); obstacles.push({x:cx+14,z:cz+8,r:3}); }
+      if(sp.ground==='plaza'){ for(let k=0;k<3;k++){pushGeo('pole',lam(0xdcdcdc),new THREE.CylinderGeometry(.12,.12,12,6),cx-14+k*4,6.2,cz-14);obstacles.push({x:cx-14+k*4,z:cz-14,r:1});} for(let k=0;k<4;k++){pushGeo('bench',lam(0x6b4f3a),new THREE.BoxGeometry(3,.5,1),cx+12,.6,cz-10+k*6);obstacles.push({x:cx+12,z:cz-10+k*6,r:2});} }
       continue;
     }
     const canyon=(i===0||i===1);
@@ -367,40 +371,52 @@ const camoA=std(0x8f8460,.85,.1,true),camoB=std(0x6f6a4e,.85,.1,true),dkm=std(0x
 const glassM=std(0x22282d,.3,.3,true);
 function tracks(g,sx,len,hgt){ for(const s of[sx,-sx]){mesh(new THREE.BoxGeometry(.8,hgt,len),dkm,s,hgt/2+.1,0,g);for(let k=-2;k<=2;k++){const w=mesh(new THREE.CylinderGeometry(hgt*.42,hgt*.42,.85,10),stl,s,hgt*.45+.1,k*len/5.2,g);w.rotation.z=Math.PI/2;}} }
 function wheels(g,xs,zs,r){ for(const x of xs)for(const z of zs){const w=mesh(new THREE.CylinderGeometry(r,r,.5,12),dkm,x,r,z,g);w.rotation.z=Math.PI/2;} }
+/* 目標造型刻意模稜兩可：軍民共用同一組暗色調、同樣的履帶／輪組、前鏟、長桿與帆布覆蓋 */
+const PAL=[0x8f8460,0x6f6a4e,0x8a8a84,0x7c7a6a,0x6b6f5e,0x9a9282].map(c=>std(c,.85,.1,true));
+function blade(g,M,zf,w){ const b=mesh(new THREE.BoxGeometry(w||4.0,1.3,.3),M,0,1.0,zf,g); b.rotation.x=-.12; for(const sx of[1.25,-1.25])mesh(new THREE.BoxGeometry(.2,.25,1.8),M,sx,.95,zf-1.1,g).rotation.x=.15; }
+function tarp(g,M2,x,y,z,w,h,d){ const t=mesh(new THREE.BoxGeometry(w,h,d),M2,x,y,z,g); t.rotation.z=(RR()-.5)*.1; mesh(new THREE.BoxGeometry(w*1.04,.12,d*1.04),M2,x,y-h/2+.1,z,g); }
+function pole(g,x,y,z,len,rx,ry){ const p=mesh(new THREE.CylinderGeometry(.09,.11,len,8),dkm,x,y,z,g); p.rotation.x=rx; p.rotation.z=ry||0; return p; }
 const TARGETS={
-  tank(){const g=new THREE.Group();tracks(g,1.35,6.4,1.1);mesh(new THREE.BoxGeometry(3.4,1.0,6.6),camoA,0,1.6,0,g);mesh(new THREE.BoxGeometry(3.4,.4,1.2),camoB,0,1.6,3.2,g).rotation.x=.4;
-    mesh(new THREE.CylinderGeometry(1.4,1.6,1.0,8),camoB,0,2.6,-.3,g);mesh(new THREE.BoxGeometry(1.0,.5,1.0),camoA,.9,3.3,-.6,g);
-    const b=mesh(new THREE.CylinderGeometry(.14,.17,5.4,8),dkm,0,2.7,2.6,g);b.rotation.x=Math.PI/2;mesh(new THREE.BoxGeometry(.5,.5,.9),dkm,0,2.7,1.0,g);return g;},
-  dozer(){const g=new THREE.Group();tracks(g,1.3,4.2,1.05);mesh(new THREE.BoxGeometry(2.1,1.1,3.6),yel,0,1.6,-.2,g);mesh(new THREE.BoxGeometry(1.7,.95,1.7),yel,0,2.2,.65,g);
-    mesh(new THREE.BoxGeometry(1.7,1.5,1.5),yel,0,2.9,-1.0,g);mesh(new THREE.BoxGeometry(1.5,.9,1.3),glassM,0,3.05,-1.0,g);mesh(new THREE.CylinderGeometry(.08,.08,1.2,6),dkm,.45,3.0,.95,g);
-    const bl=mesh(new THREE.BoxGeometry(4.0,1.4,.3),yel,0,1.0,2.8,g);bl.rotation.x=-.12;for(const s of[1.25,-1.25])mesh(new THREE.BoxGeometry(.2,.25,1.9),yel,s,.95,1.8,g).rotation.x=.15;
-    mesh(new THREE.BoxGeometry(.3,.3,1.6),yel,0,1.3,-2.6,g).rotation.x=.3;mesh(new THREE.BoxGeometry(.2,1.0,.25),stl,0,.65,-3.3,g);return g;},
-  gunTruck(){const g=new THREE.Group();wheels(g,[1.0,-1.0],[1.6,-1.6],.5);mesh(new THREE.BoxGeometry(2.0,.6,5.0),tan,0,.95,0,g);mesh(new THREE.BoxGeometry(1.9,1.0,1.9),tan,0,1.7,1.0,g);mesh(new THREE.BoxGeometry(1.7,.6,1.6),glassM,0,1.9,1.0,g);
-    mesh(new THREE.BoxGeometry(1.9,.5,2.4),tan,0,1.5,-1.3,g);mesh(new THREE.CylinderGeometry(.08,.08,1.4,6),dkm,0,2.4,-1.2,g);const gn=mesh(new THREE.CylinderGeometry(.07,.07,1.6,6),dkm,0,3.1,-.5,g);gn.rotation.x=Math.PI/2;mesh(new THREE.BoxGeometry(.5,.4,.8),dkm,0,3.1,-1.3,g);
-    mesh(new THREE.BoxGeometry(.3,.5,.3),dkm,.6,1.9,-1.6,g);return g;},
-  boxTruck(){const g=new THREE.Group();wheels(g,[1.0,-1.0],[1.8,-1.4],.5);mesh(new THREE.BoxGeometry(2.0,.5,5.6),dkm,0,.85,0,g);mesh(new THREE.BoxGeometry(2.0,1.3,1.8),wht,0,1.75,1.7,g);mesh(new THREE.BoxGeometry(1.8,.6,1.5),glassM,0,2.05,1.75,g);
-    mesh(new THREE.BoxGeometry(2.2,2.0,3.4),wht,0,2.1,-1.0,g);mesh(new THREE.BoxGeometry(.6,.6,.6),blu,0,3.3,-1.0,g);mesh(new THREE.BoxGeometry(2.22,.3,3.42),blu,0,1.25,-1.0,g);return g;},
-  apc(){const g=new THREE.Group();wheels(g,[1.35,-1.35],[2.4,.8,-.8,-2.4],.6);mesh(new THREE.BoxGeometry(2.8,1.2,7.0),camoB,0,1.6,0,g);mesh(new THREE.BoxGeometry(2.8,.6,1.6),camoA,0,2.1,2.9,g).rotation.x=.5;
-    mesh(new THREE.BoxGeometry(2.4,.6,4.0),camoA,0,2.5,-.6,g);mesh(new THREE.CylinderGeometry(.6,.7,.5,8),camoB,0,3.05,-.2,g);const gn=mesh(new THREE.CylinderGeometry(.06,.06,1.6,6),dkm,0,3.1,.8,g);gn.rotation.x=Math.PI/2;
-    mesh(new THREE.BoxGeometry(.25,.8,.25),dkm,-1.0,2.9,-1.5,g);return g;},
-  plow(){const g=new THREE.Group();wheels(g,[1.2,-1.2],[2.2,-1.2,-2.2],.6);mesh(new THREE.BoxGeometry(2.4,1.0,6.4),org,0,1.5,-.2,g);mesh(new THREE.BoxGeometry(2.3,1.3,1.8),org,0,2.6,2.0,g);mesh(new THREE.BoxGeometry(2.1,.7,1.6),glassM,0,2.8,2.05,g);
-    mesh(new THREE.BoxGeometry(2.2,1.4,3.2),org,0,2.6,-1.0,g);mesh(new THREE.BoxGeometry(.3,.3,.3),basic(0xffb000),0,3.4,2.0,g);
-    const bl=mesh(new THREE.BoxGeometry(4.2,1.3,.3),wht,0,1.1,3.6,g);bl.rotation.y=.25;bl.rotation.x=-.2;mesh(new THREE.BoxGeometry(2.0,.3,1.2),stl,0,1.0,3.0,g);return g;},
-  mortar(){const g=new THREE.Group();for(let k=0;k<14;k++){const a=k/14*6.283;mesh(new THREE.BoxGeometry(1.2,.6,.6),tan,Math.cos(a)*3.4,.5,Math.sin(a)*3.4,g).rotation.y=-a;mesh(new THREE.BoxGeometry(1.2,.6,.6),tan,Math.cos(a+.22)*3.4,1.05,Math.sin(a+.22)*3.4,g).rotation.y=-a-.22;}
+  tank(M,M2,o){const g=new THREE.Group();tracks(g,1.35,6.4,1.1);mesh(new THREE.BoxGeometry(3.4,1.0,6.6),M,0,1.6,0,g);mesh(new THREE.BoxGeometry(3.4,.4,1.2),M2,0,1.6,3.2,g).rotation.x=.4;
+    mesh(new THREE.CylinderGeometry(1.4,1.6,1.0,8),M2,0,2.6,-.3,g);mesh(new THREE.BoxGeometry(1.0,.5,1.0),M,.9,3.3,-.6,g);
+    const b=mesh(new THREE.CylinderGeometry(.14,.17,4.4,8),dkm,0,2.7,2.1,g);b.rotation.x=Math.PI/2;mesh(new THREE.BoxGeometry(.5,.5,.9),dkm,0,2.7,.9,g);
+    if(o.blade)blade(g,M,3.6); if(o.tarp)tarp(g,M2,0,2.65,-1.8,3.2,.5,2.6); if(o.pole)pole(g,-1.2,3.4,-2.2,2.6,.9); return g;},
+  dozer(M,M2,o){const g=new THREE.Group();tracks(g,1.35,5.4,1.1);mesh(new THREE.BoxGeometry(3.0,1.1,5.6),M,0,1.6,-.2,g);mesh(new THREE.BoxGeometry(2.4,.9,1.9),M,0,2.3,1.0,g);
+    mesh(new THREE.CylinderGeometry(1.1,1.2,1.2,8),M2,0,2.75,-.9,g);mesh(new THREE.BoxGeometry(1.5,1.1,1.4),glassM,0,2.95,-.9,g);mesh(new THREE.CylinderGeometry(.09,.09,1.2,6),dkm,.6,3.2,.6,g);
+    blade(g,M,3.2); const rip=mesh(new THREE.CylinderGeometry(.13,.16,3.6,8),dkm,0,2.6,-3.3,g);rip.rotation.x=-Math.PI/2+.55; mesh(new THREE.BoxGeometry(.3,.9,.3),stl,0,.8,-3.6,g);
+    if(o.tarp)tarp(g,M2,0,2.75,.9,2.6,.45,2.0); if(o.pole)pole(g,1.2,3.4,-1.8,2.6,.9); return g;},
+  gunTruck(M,M2,o){const g=new THREE.Group();wheels(g,[1.0,-1.0],[1.6,-1.6],.5);mesh(new THREE.BoxGeometry(2.0,.6,5.0),M,0,.95,0,g);mesh(new THREE.BoxGeometry(1.9,1.0,1.9),M,0,1.7,1.0,g);mesh(new THREE.BoxGeometry(1.7,.6,1.6),glassM,0,1.9,1.0,g);
+    mesh(new THREE.BoxGeometry(1.9,.5,2.4),M,0,1.5,-1.3,g);mesh(new THREE.BoxGeometry(2.1,1.4,2.6),M2,0,2.0,-1.3,g);
+    mesh(new THREE.CylinderGeometry(.08,.08,1.0,6),dkm,0,2.9,-1.2,g);const gn=mesh(new THREE.CylinderGeometry(.07,.07,1.8,6),dkm,0,3.2,-.4,g);gn.rotation.x=Math.PI/2;mesh(new THREE.BoxGeometry(.5,.4,.8),dkm,0,3.2,-1.3,g);
+    if(o.pole)pole(g,.8,2.4,2.0,2.2,.3); return g;},
+  boxTruck(M,M2,o){const g=new THREE.Group();wheels(g,[1.0,-1.0],[1.7,-1.5],.5);mesh(new THREE.BoxGeometry(2.0,.5,5.4),M,0,.85,0,g);mesh(new THREE.BoxGeometry(1.9,1.1,1.8),M,0,1.65,1.6,g);mesh(new THREE.BoxGeometry(1.7,.6,1.5),glassM,0,1.9,1.65,g);
+    mesh(new THREE.BoxGeometry(2.1,1.5,3.0),M2,0,1.95,-.9,g);mesh(new THREE.CylinderGeometry(.25,.25,2.2,8),dkm,0,2.9,-.9,g).rotation.x=Math.PI/2;
+    const rk=mesh(new THREE.CylinderGeometry(.07,.07,2.0,6),dkm,.5,3.05,-.2,g);rk.rotation.x=Math.PI/2;mesh(new THREE.BoxGeometry(.5,.35,.7),dkm,.5,3.0,-1.3,g);
+    if(o.pole)pole(g,-.8,2.6,2.3,2.2,.3); return g;},
+  apc(M,M2,o){const g=new THREE.Group();wheels(g,[1.35,-1.35],[2.4,.8,-.8,-2.4],.6);mesh(new THREE.BoxGeometry(2.8,1.2,7.0),M,0,1.6,0,g);mesh(new THREE.BoxGeometry(2.8,.6,1.6),M2,0,2.1,2.9,g).rotation.x=.5;
+    mesh(new THREE.BoxGeometry(2.4,.7,4.0),M2,0,2.5,-.6,g);mesh(new THREE.CylinderGeometry(.6,.7,.5,8),M,0,3.1,-.2,g);const gn=mesh(new THREE.CylinderGeometry(.06,.06,1.6,6),dkm,0,3.15,.8,g);gn.rotation.x=Math.PI/2;
+    mesh(new THREE.BoxGeometry(.25,.8,.25),dkm,-1.0,2.9,-1.5,g); if(o.blade)blade(g,M,3.9,3.4); if(o.tarp)tarp(g,M2,0,3.0,-1.8,2.2,.4,1.6); return g;},
+  plow(M,M2,o){const g=new THREE.Group();wheels(g,[1.3,-1.3],[2.3,.4,-1.2,-2.3],.6);mesh(new THREE.BoxGeometry(2.6,1.1,6.8),M,0,1.55,-.2,g);mesh(new THREE.BoxGeometry(2.5,1.2,1.8),M,0,2.6,2.2,g);mesh(new THREE.BoxGeometry(2.3,.7,1.6),glassM,0,2.8,2.25,g);
+    mesh(new THREE.BoxGeometry(2.4,1.1,3.6),M2,0,2.65,-.9,g);mesh(new THREE.CylinderGeometry(.5,.6,.5,8),M,0,3.45,-.4,g);mesh(new THREE.CylinderGeometry(.06,.06,1.2,6),dkm,0,3.5,.4,g).rotation.x=Math.PI/2;
+    blade(g,M,3.8,3.6); if(o.pole)pole(g,-1.0,3.2,-2.0,1.6,.9); return g;},
+  mortar(M,M2,o){const g=new THREE.Group();for(let k=0;k<14;k++){const a=k/14*6.283;mesh(new THREE.BoxGeometry(1.2,.6,.6),M,Math.cos(a)*3.4,.5,Math.sin(a)*3.4,g).rotation.y=-a;mesh(new THREE.BoxGeometry(1.2,.6,.6),M,Math.cos(a+.22)*3.4,1.05,Math.sin(a+.22)*3.4,g).rotation.y=-a-.22;}
     for(const [x,z] of[[-1.0,0],[1.0,.4]]){mesh(new THREE.BoxGeometry(1.2,.2,1.2),dkm,x,.35,z,g);const t=mesh(new THREE.CylinderGeometry(.14,.16,1.9,8),dkm,x,1.1,z-.4,g);t.rotation.x=-.75;mesh(new THREE.BoxGeometry(.08,1.1,.08),dkm,x+.35,.9,z+.3,g).rotation.x=.5;}
-    mesh(new THREE.BoxGeometry(1.0,.7,.6),camoB,0,.6,-2.0,g);mesh(new THREE.BoxGeometry(1.0,.7,.6),camoB,-1.2,.6,-2.0,g);return g;},
-  playground(){const g=new THREE.Group();mesh(new THREE.TorusGeometry(3.2,.25,6,20),red,0,.5,0,g).rotation.x=Math.PI/2;
-    for(const [x,z] of[[-1.0,0],[1.0,.4]]){const t=mesh(new THREE.CylinderGeometry(.16,.16,1.9,8),blu,x,1.1,z-.4,g);t.rotation.x=-.75;mesh(new THREE.CylinderGeometry(.06,.06,1.3,6),blu,x+.35,.9,z+.3,g).rotation.x=.5;mesh(new THREE.BoxGeometry(1.2,.2,1.2),grn,x,.35,z,g);}
-    mesh(new THREE.BoxGeometry(.12,2.4,.12),blu,-1.6,1.2,-2.2,g);mesh(new THREE.BoxGeometry(.12,2.4,.12),blu,1.6,1.2,-2.2,g);mesh(new THREE.BoxGeometry(3.4,.12,.12),blu,0,2.4,-2.2,g);
-    for(const x of[-.6,.6]){mesh(new THREE.BoxGeometry(.04,1.6,.04),stl,x,1.6,-2.2,g);mesh(new THREE.BoxGeometry(.6,.08,.3),red,x,.8,-2.2,g);}
-    const sl=mesh(new THREE.BoxGeometry(.9,.12,2.6),yel,2.4,1.0,1.2,g);sl.rotation.x=.55;mesh(new THREE.BoxGeometry(1.0,1.6,1.0),yel,2.4,.9,-.2,g);return g;},
-  spg(){const g=new THREE.Group();tracks(g,1.5,7.0,1.15);mesh(new THREE.BoxGeometry(3.6,1.1,7.2),camoB,0,1.7,0,g);mesh(new THREE.BoxGeometry(3.4,1.6,3.6),camoA,0,3.0,-1.2,g);
-    const b=mesh(new THREE.CylinderGeometry(.16,.22,7.0,8),dkm,0,3.9,2.6,g);b.rotation.x=Math.PI/2-.28;mesh(new THREE.BoxGeometry(.7,.6,.7),dkm,0,3.4,.9,g);mesh(new THREE.BoxGeometry(.9,.4,.9),camoB,1.0,3.95,-1.6,g);return g;},
-  excavator(){const g=new THREE.Group();tracks(g,1.3,4.6,1.05);mesh(new THREE.CylinderGeometry(1.5,1.5,.5,10),yel,0,1.4,0,g);mesh(new THREE.BoxGeometry(2.6,1.5,3.4),yel,0,2.3,-.6,g);
-    mesh(new THREE.BoxGeometry(1.3,1.5,1.4),yel,-.65,2.4,.9,g);mesh(new THREE.BoxGeometry(1.1,1.0,1.2),glassM,-.65,2.6,.95,g);mesh(new THREE.BoxGeometry(1.2,1.2,1.6),dkm,0,2.4,-2.6,g);
-    const bm=mesh(new THREE.BoxGeometry(.5,.5,5.2),yel,.6,3.6,2.2,g);bm.rotation.x=-.6;const st=mesh(new THREE.BoxGeometry(.4,.4,3.4),yel,.6,3.4,5.2,g);st.rotation.x=.9;mesh(new THREE.BoxGeometry(1.1,.8,1.0),dkm,.6,1.5,6.3,g);return g;},
+    mesh(new THREE.BoxGeometry(.12,2.2,.12),dkm,-1.6,1.1,-2.0,g);mesh(new THREE.BoxGeometry(.12,2.2,.12),dkm,1.6,1.1,-2.0,g);mesh(new THREE.BoxGeometry(3.4,.12,.12),dkm,0,2.2,-2.0,g);
+    mesh(new THREE.BoxGeometry(1.0,.7,.6),M2,0,.6,-2.0,g);mesh(new THREE.BoxGeometry(1.0,.7,.6),M2,-1.2,.6,-2.0,g); if(o.tarp)tarp(g,M2,1.4,1.0,1.2,1.6,.4,1.4); return g;},
+  playground(M,M2,o){const g=new THREE.Group();for(let k=0;k<12;k++){const a=k/12*6.283;const t=mesh(new THREE.TorusGeometry(.5,.22,6,12),dkm,Math.cos(a)*3.4,.5,Math.sin(a)*3.4,g);t.rotation.x=Math.PI/2;}
+    for(const [x,z] of[[-1.0,0],[1.0,.4]]){const t=mesh(new THREE.CylinderGeometry(.16,.16,1.9,8),M,x,1.1,z-.4,g);t.rotation.x=-.75;mesh(new THREE.CylinderGeometry(.06,.06,1.3,6),dkm,x+.35,.9,z+.3,g).rotation.x=.5;mesh(new THREE.BoxGeometry(1.2,.2,1.2),M2,x,.35,z,g);}
+    mesh(new THREE.BoxGeometry(.12,2.4,.12),dkm,-1.6,1.2,-2.2,g);mesh(new THREE.BoxGeometry(.12,2.4,.12),dkm,1.6,1.2,-2.2,g);mesh(new THREE.BoxGeometry(3.4,.12,.12),dkm,0,2.4,-2.2,g);
+    for(const x of[-.6,.6]){mesh(new THREE.BoxGeometry(.04,1.6,.04),stl,x,1.6,-2.2,g);mesh(new THREE.BoxGeometry(.6,.08,.3),M2,x,.8,-2.2,g);}
+    const sl=mesh(new THREE.BoxGeometry(.9,.12,2.6),M,2.4,1.0,1.2,g);sl.rotation.x=.55;mesh(new THREE.BoxGeometry(1.0,1.4,1.0),M2,2.4,.9,-.2,g); if(o.tarp)tarp(g,M2,-1.4,1.0,1.4,1.6,.4,1.4); return g;},
+  spg(M,M2,o){const g=new THREE.Group();tracks(g,1.5,7.0,1.15);mesh(new THREE.BoxGeometry(3.6,1.1,7.2),M,0,1.7,0,g);mesh(new THREE.BoxGeometry(3.4,1.6,3.6),M2,0,3.0,-1.2,g);
+    const b=mesh(new THREE.CylinderGeometry(.16,.22,6.4,8),dkm,0,3.9,2.4,g);b.rotation.x=Math.PI/2-.28;mesh(new THREE.BoxGeometry(.7,.6,.7),dkm,0,3.4,.9,g);mesh(new THREE.BoxGeometry(.9,.4,.9),M,1.0,3.95,-1.6,g);
+    mesh(new THREE.BoxGeometry(2.2,1.1,1.0),M2,0,1.2,-4.0,g); if(o.tarp)tarp(g,M2,0,3.95,-1.2,2.6,.4,2.4); return g;},
+  excavator(M,M2,o){const g=new THREE.Group();tracks(g,1.5,6.2,1.15);mesh(new THREE.BoxGeometry(3.4,1.0,6.4),M,0,1.6,0,g);mesh(new THREE.CylinderGeometry(1.5,1.5,.5,10),M2,0,2.3,-.4,g);mesh(new THREE.BoxGeometry(3.0,1.5,3.4),M2,0,3.1,-1.0,g);
+    mesh(new THREE.BoxGeometry(1.2,1.2,1.3),glassM,-.9,3.3,.6,g);mesh(new THREE.BoxGeometry(2.2,1.1,1.0),M,0,2.9,-3.1,g);
+    const bm=mesh(new THREE.CylinderGeometry(.22,.26,5.6,8),dkm,.5,3.9,2.2,g);bm.rotation.x=Math.PI/2-.3;mesh(new THREE.BoxGeometry(.6,.6,.8),dkm,.5,3.3,.5,g);const bk=mesh(new THREE.BoxGeometry(.9,.6,.8),dkm,.5,2.3,5.0,g);bk.rotation.x=.4;
+    if(o.tarp)tarp(g,M2,0,3.95,-1.1,2.4,.4,2.2); return g;},
 };
-function makeTarget(kind){const g=TARGETS[kind]();g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});return g;}
+function makeTarget(kind){const M=PAL[Math.floor(RR()*PAL.length)];let M2=PAL[Math.floor(RR()*PAL.length)];const o={blade:RR()<.6,tarp:RR()<.55,pole:RR()<.5};const g=TARGETS[kind](M,M2,o);g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});return g;}
 const ghostMat=new THREE.LineBasicMaterial({color:0x101418,transparent:true,opacity:.9,depthTest:false,depthWrite:false});
 const ghostFill=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.42,depthTest:false,depthWrite:false});
 function makeGhost(g){ const gh=new THREE.Group(); g.children.forEach(m=>{ if(!m.isMesh)return; const f=new THREE.Mesh(m.geometry,ghostFill); f.position.copy(m.position); f.rotation.copy(m.rotation); f.scale.copy(m.scale); f.renderOrder=998; gh.add(f); const l=new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry,25),ghostMat); l.position.copy(m.position); l.rotation.copy(m.rotation); l.scale.copy(m.scale); l.renderOrder=999; gh.add(l); }); gh.position.copy(g.position); gh.rotation.copy(g.rotation); gh.visible=false; gh.renderOrder=999; return gh; }
@@ -511,11 +527,13 @@ function newMission(){
   spawned.forEach(o=>scene.remove(o)); spawned.length=0;
   G.zones=zonesDef.map(z=>({...z}));
   const idx=[0,1,2,3,4].sort(()=>RR()-.5).slice(0,2); // 兩個真目標
+  const freeSpot=(z,rMin,rMax,others,need)=>{ for(let k=0;k<80;k++){ let x,zz; if(z.road){x=z.x;zz=z.z+(RR()-.5)*64;} else {const a=RR()*6.283,r=rMin+RR()*(rMax-rMin);x=z.x+Math.cos(a)*r;zz=z.z+Math.sin(a)*r;}
+      if(hitBuilding(x,1,zz,need))continue; if(obstacles.some(o=>Math.hypot(o.x-x,o.z-zz)<o.r+need))continue; if(others.some(o=>Math.hypot(o.x-x,o.z-zz)<10))continue; return [x,zz]; } return null; };
   G.zones.forEach((z,i)=>{z.isReal=idx.includes(i);z.prob=80+Math.floor(RR()*15);z.kind=z.isReal?z.real:z.civ;z.actualName=z.isReal?z.realName:z.civName;
-    const ang=RR()*6.283,rad=4+RR()*10; z.tx=z.x+Math.cos(ang)*rad; z.tz=z.z+Math.sin(ang)*rad; if(z.road){z.tx=z.x;z.tz=z.z+ (RR()-.5)*20;}
+    const placed=[]; const tp=freeSpot(z,3,13,placed,5.5)||[z.x,z.z]; z.tx=tp[0]; z.tz=tp[1]; placed.push({x:z.tx,z:z.tz});
     z.obj=makeTarget(z.kind); spawned.push(z.obj); z.obj.position.set(z.tx,.25,z.tz); z.obj.rotation.y=RR()*6.283; scene.add(z.obj); z.done=false; z.result=null; z.ghost=makeGhost(z.obj); scene.add(z.ghost); spawned.push(z.ghost); z.occluded=false;
     // 周邊雜物（AI 判定為民用，無按鈕）
-    z.clutter=[]; for(let k=0;k<2;k++){const c=new THREE.Group(); const b=mesh(new THREE.BoxGeometry(1.9,.8,4.3),lam(carCols[k]),0,.75,0,c); mesh(new THREE.BoxGeometry(1.7,.7,2.2),lam(carCols[k]),0,1.45,-.2,c); const a=ang+2.1+k*1.9; c.position.set(z.x+Math.cos(a)*16,.25,z.z+Math.sin(a)*16); c.rotation.y=RR()*6.283; scene.add(c); spawned.push(c); z.clutter.push({m:c,prob:5+Math.floor(RR()*14)});}
+    z.clutter=[]; for(let k=0;k<2;k++){const cp=freeSpot(z,9,17,placed,4); if(!cp)continue; placed.push({x:cp[0],z:cp[1]}); const c=new THREE.Group(); const b=mesh(new THREE.BoxGeometry(1.9,.8,4.3),lam(carCols[k]),0,.75,0,c); mesh(new THREE.BoxGeometry(1.7,.7,2.2),lam(carCols[k]),0,1.45,-.2,c); c.position.set(cp[0],.25,cp[1]); c.rotation.y=z.road?0:RR()*6.283; scene.add(c); spawned.push(c); z.clutter.push({m:c,prob:5+Math.floor(RR()*14)});}
   });
   G.zoneIdx=0; G.attacks=[]; G.anomalies=[]; G.hp=140; G.missiles=6; G.heat=0; G.overheat=0; G.lock=0; G.locked=false; G.rogueIdx=0; G.win=null; G.lastStrikeDrone=1;
   G.drones.forEach((d,k)=>{d.alive=true;d.hp=HPMAX[k];d.state='escort';d.rogue=false;d.m.visible=k<2;d.m.userData.lights.forEach((l,i)=>l.material=basic(i<3?0x3dff6a:(i===6?0x3d6a86:0xffffff)));});
@@ -526,6 +544,11 @@ function resetHeli(x,y,z,yaw){ G.pos.set(x,y,z); G.yaw=yaw; G.speed=0; G.vroll=0
 const stick=document.getElementById('stick'),knob=document.getElementById('knob');
 const bAccel=document.getElementById('bAccel'),bGun=document.getElementById('bGun'),bMis=document.getElementById('bMis');
 let stickId=null,stickC={x:0,y:0},stickR=60;
+function fitAI(){ // 面板太高時整體等比縮小，確保按鈕永遠在畫面內
+  const ap=document.getElementById('aiPanel'); if(!ap||ap.classList.contains('hidden'))return;
+  ap.style.transform=''; const top=parseFloat(ap.style.top)||8; const avail=H-top-8; const h=ap.offsetHeight;
+  if(h>avail){ const sc=Math.max(.45,avail/h); ap.style.transformOrigin=(H>W)?'top center':'top right'; ap.style.transform=`scale(${sc})`; }
+}
 function layoutControls(){
   const port=H>W; const s=Math.min(W,H);
   stickR=Math.round(clamp(s*.13,46,76));
@@ -535,7 +558,8 @@ function layoutControls(){
   bMis.style.width=bMis.style.height=Math.round(bs*.8)+'px'; bMis.style.right=(port?16:28)+'px'; bMis.style.bottom=(port?Math.round(s*.22)+bs+14:bs+44)+'px'; bMis.style.fontSize=Math.round(bs*.25)+'px';
   const ap=document.getElementById('aiPanel');
   if(port){ap.style.left='10px';ap.style.right='10px';ap.style.top='96px';ap.style.bottom='';ap.style.width='';}
-  else{ap.style.left='';ap.style.right='12px';ap.style.top='52px';ap.style.bottom='';ap.style.width=Math.round(clamp(W*.27,250,330))+'px';}
+  else{ap.style.left='';ap.style.right='max(10px, env(safe-area-inset-right))';ap.style.top=(H<480?8:52)+'px';ap.style.bottom='';ap.style.width=Math.round(clamp(W*.27,250,330))+'px';}
+  fitAI();
   document.getElementById('tip').classList.toggle('hidden',!(port&&G.phase!=='menu'&&G.phase!=='ending'));
 }
 stick.addEventListener('pointerdown',e=>{stickId=e.pointerId;const r=stick.getBoundingClientRect();stickC={x:r.left+r.width/2,y:r.top+r.height/2};stick.setPointerCapture(e.pointerId);moveStick(e);});
@@ -599,16 +623,19 @@ function startFly(fromStart){
 }
 function startAim(){
   const z=G.zones[G.zoneIdx]; G.phase='aim'; showControls(true,false); G.orbitA=Math.atan2(G.pos.z-z.z,G.pos.x-z.x); G.aimPt.set(z.x+(RR()-.5)*50,0,z.z+(RR()-.5)*50); G.ai=null; G.aiT=0; G.abdWarn=false; G.yawIn=0; G.pitchIn=0; G.accel=false;
-  glc.classList.add('sensor'); bAccel.classList.add('hidden'); G.heli.visible=false; hint('瞄準模式：用推桿移動視野，把準星對準可疑目標',4);
+  glc.classList.add('sensor'); bAccel.classList.add('hidden'); G.heli.visible=false; hint('瞄準模式：用推桿移動視野，把準星對準可疑目標。判讀出現後只有 5 秒可以決定',4.5);
 }
 function aiAttack(){
   if(G.phase!=='aim'||!G.ai||G.ai.clutter)return;
-  const z=G.zones[G.zoneIdx]; z.result='attack'; G.attacks.push({zone:z,act:'attack'}); document.getElementById('aiPanel').classList.add('hidden'); startStrike();
+  const z=G.zones[G.zoneIdx]; z.result='attack'; G.attacks.push({zone:z,act:'attack'}); document.getElementById('aiPanel').classList.add('hidden'); G.ai=null; startStrike();
+}
+function aiTimeout(){
+  if(G.phase!=='aim')return; const z=G.zones[G.zoneIdx]; z.result='timeout'; z.done=true; G.attacks.push({zone:z,act:'timeout'}); document.getElementById('aiPanel').classList.add('hidden'); G.ai=null; hint('逾時未決定，目標已略過。前往下一區',3); nextZone();
 }
 function aiAbandon(){
   if(G.phase!=='aim'||!G.ai||G.ai.clutter)return;
-  if(!G.abdWarn){ G.abdWarn=true; const w=document.getElementById('aiW'); w.textContent=`確定放棄？本目標威脅機率 ${G.ai.prob}%`; w.classList.remove('hidden'); document.getElementById('abd').textContent='仍然放棄'; document.getElementById('atk').textContent='改為攻擊'; return; }
-  const z=G.zones[G.zoneIdx]; z.result='abandon'; z.done=true; G.attacks.push({zone:z,act:'abandon'}); document.getElementById('aiPanel').classList.add('hidden'); hint('已略過目標。前往下一區',3); nextZone();
+  if(!G.abdWarn){ G.abdWarn=true; const w=document.getElementById('aiW'); w.textContent=`確定放棄？本目標威脅機率 ${G.ai.prob}%`; w.classList.remove('hidden'); document.getElementById('abd').textContent='仍然放棄'; document.getElementById('atk').textContent='改為攻擊'; fitAI(); return; }
+  const z=G.zones[G.zoneIdx]; z.result='abandon'; z.done=true; G.attacks.push({zone:z,act:'abandon'}); document.getElementById('aiPanel').classList.add('hidden'); G.ai=null; hint('已略過目標。前往下一區',3); nextZone();
 }
 document.getElementById('atk').onclick=aiAttack; document.getElementById('abd').onclick=aiAbandon;
 function startStrike(){
@@ -737,10 +764,13 @@ function update(dt){
     // 判讀
     const near=Math.hypot(G.aimPt.x-z.tx,G.aimPt.z-z.tz)<5.5; let cl=null; for(const c of z.clutter){ if(Math.hypot(G.aimPt.x-c.m.position.x,G.aimPt.z-c.m.position.z)<4) cl=c; }
     const ap=document.getElementById('aiPanel');
-    if(near||cl){ G.aiT+=dt; if(G.aiT>.7&&!G.ai){ G.ai=cl?{clutter:true,prob:cl.prob}:{prob:z.prob}; ap.classList.remove('hidden'); SFX.blip();
+    if(G.ai&&!G.ai.clutter){ // 已出現判讀：5 秒內要決定，移開準星也不會消失
+      G.decideT-=dt; const dT=document.getElementById('aiT'),dB=document.getElementById('aiTb'); const r=Math.max(0,G.decideT); dT.textContent='決定時間　'+r.toFixed(1)+' 秒'; dB.style.width=(r/5*100)+'%'; dB.style.background=r<2?'#ff5a3c':'#ffe08a'; dT.style.color=r<2?'#ff5a3c':'#ffe08a';
+      if(G.decideT<=0){ aiTimeout(); return; } }
+    else if(near||cl){ G.aiT+=dt; if(G.aiT>.7&&!G.ai){ G.ai=cl?{clutter:true,prob:cl.prob}:{prob:z.prob}; ap.classList.remove('hidden'); SFX.blip();
         document.getElementById('aiP').textContent=G.ai.prob+'%'; document.getElementById('aiBar').style.width=G.ai.prob+'%'; document.getElementById('aiBar').style.background=cl?'#5fd35f':'#ff5a3c'; document.getElementById('aiP').style.color=cl?'#5fd35f':'#ff5a3c';
         document.getElementById('aiV').textContent=cl?'判定：民用車輛':'判定：'+z.aiLabel; document.getElementById('aiB').textContent=cl?'不建議攻擊':'依據：'+z.basis;
-        document.querySelector('#aiPanel .btns').style.display=cl?'none':'flex'; document.getElementById('aiW').classList.add('hidden'); document.getElementById('abd').textContent='放棄'; document.getElementById('atk').textContent='攻擊'; G.abdWarn=false;
+        document.querySelector('#aiPanel .btns').style.display=cl?'none':'flex'; document.getElementById('aiT').style.display=cl?'none':''; document.getElementById('aiTb').parentElement.style.display=cl?'none':''; G.decideT=5; document.getElementById('aiW').classList.add('hidden'); fitAI(); document.getElementById('abd').textContent='放棄'; document.getElementById('atk').textContent='攻擊'; G.abdWarn=false;
         if(G.autopilot&&!cl){ setTimeout(()=>{ if(G.phase==='aim')aiAttack(); },1800); } } }
     else { G.aiT=0; if(G.ai){G.ai=null;ap.classList.add('hidden');} }
   }
@@ -854,7 +884,7 @@ const camPos=V3(),camLook=V3(); let camInit=false;
 function updateCamera(dt){
   const ph=G.phase; const f=fwd(); const r=right();
   let want,look,fov=60,roll=0;
-  if(ph==='aim'){ want=G.pos.clone(); look=G.aimPt.clone(); fov=14; }
+  if(ph==='aim'){ want=G.pos.clone(); look=G.aimPt.clone(); fov=17; }
   else if(ph==='strike'){ const z=G.zones[G.zoneIdx]; const a=G.orbitA+Math.PI*.75; want=V3(z.tx+Math.cos(a)*62,44,z.tz+Math.sin(a)*62); look=V3(z.tx+2,6,z.tz+1); fov=34; }
   else { want=G.pos.clone().addScaledVector(f,-24).add(V3(0,9,0)); look=G.pos.clone().addScaledVector(f,30).add(V3(0,2,0)); fov=58; roll=0; }
   const sm=camInit?1-Math.pow(.001,dt):1; camInit=true;
@@ -887,7 +917,7 @@ function drawHUD(){
   // 任務區警告
   if(G.outT>=0&&(ph==='practice'||ph==='fly'||ph==='chase')){ const n=Math.ceil(5-G.outT); const bw=Math.min(W-40,520*u); const by=port?H*.44:H*.34; hx.fillStyle='rgba(142,27,27,.9)'; hx.fillRect(W/2-bw/2,by,bw,fs(66)); hx.strokeStyle='#ff6b6b'; hx.lineWidth=2; hx.strokeRect(W/2-bw/2,by,bw,fs(66)); txt('你正離開任務區　掉頭返回',W/2,by+fs(22),fs(20),'center'); txt(n+' 秒後放棄任務',W/2,by+fs(48),fs(20),'center','#ffd6d0'); }
   // 提示
-  if(G.hintT>0&&G.hint){ const y=(ph==='aim'||ph==='strike')?H*.17:(port?H*.3:H*.24); txtWrap(G.hint,W/2,y,fs(19),'center','#ffe08a',port?W-40:W*.6); }
+  if(G.hintT>0&&G.hint){ const sens=(ph==='aim'||ph==='strike'); const y=sens?H*.17:(port?H*.3:H*.24); txtWrap(G.hint,(sens&&!port)?W*.4:W/2,y,fs(19),'center','#ffe08a',port?W-40:(sens?W*.5:W*.6)); }
   if(G.anomT>0){ const a=Math.floor(G.anomT*4)%2?1:.35; hx.globalAlpha=a; txt(G.anomText,W/2,(port?H*.4:H*.31),fs(17),'center','#ff9a3c'); hx.globalAlpha=1; }
 }
 function drawPatrol(u,port,fs){
@@ -925,7 +955,7 @@ function drawMini(mx,my,ms,f){
   // 無人機
   G.drones.forEach(d=>{ if(!d.alive||!d.m.visible)return; hx.fillStyle=d.rogue?'#ff3b30':'#3dff6a'; hx.beginPath(); hx.arc(px(d.pos.x),pz(d.pos.z),3,0,7); hx.fill(); });
   // 自己
-  hx.save(); hx.translate(px(G.pos.x),pz(G.pos.z)); hx.rotate(-G.yaw+Math.PI); hx.fillStyle='#fff'; hx.beginPath(); hx.moveTo(0,-7); hx.lineTo(5,6); hx.lineTo(0,3); hx.lineTo(-5,6); hx.closePath(); hx.fill(); hx.restore();
+  hx.save(); hx.translate(px(G.pos.x),pz(G.pos.z)); hx.rotate(-G.yaw); hx.fillStyle='#fff'; hx.beginPath(); hx.moveTo(0,-7); hx.lineTo(5,6); hx.lineTo(0,3); hx.lineTo(-5,6); hx.closePath(); hx.fill(); hx.restore();
 }
 function drawCompass(cx,y,w,f,tgt){
   hx.strokeStyle='#fff'; hx.lineWidth=2.5; hx.beginPath(); hx.moveTo(cx-w/2,y); hx.lineTo(cx+w/2,y); hx.stroke();
@@ -993,11 +1023,11 @@ const SOURCES=[
 ];
 function ending(){
   G.phase='ending'; showControls(false); glc.classList.remove('sensor');
-  const atkN=G.attacks.filter(a=>a.act==='attack').length, abdN=G.attacks.length-atkN;
+  const atkN=G.attacks.filter(a=>a.act==='attack').length, toN=G.attacks.filter(a=>a.act==='timeout').length, abdN=G.attacks.length-atkN-toN;
   const civHit=G.attacks.filter(a=>a.act==='attack'&&!a.zone.isReal).length;
   const avg=Math.round(G.zones.reduce((s,z)=>s+z.prob,0)/G.zones.length);
   const correct=G.zones.filter(z=>z.isReal).length;
-  const rows=G.zones.map((z,i)=>`<tr><td>${i+1}</td><td>${z.name}</td><td>${z.aiLabel} ${z.prob}%</td><td>${z.result==='attack'?'攻擊':z.result==='abandon'?'放棄':'—'}</td><td>${z.actualName}</td><td><span class="tag ${z.isReal?'green':'red'}">${z.isReal?'軍事目標':'民用物體'}</span></td></tr>`).join('');
+  const rows=G.zones.map((z,i)=>`<tr><td>${i+1}</td><td>${z.name}</td><td>${z.aiLabel} ${z.prob}%</td><td>${z.result==='attack'?'攻擊':z.result==='abandon'?'放棄':z.result==='timeout'?'逾時放棄':'—'}</td><td>${z.actualName}</td><td><span class="tag ${z.isReal?'green':'red'}">${z.isReal?'軍事目標':'民用物體'}</span></td></tr>`).join('');
   const src=SOURCES.map(s=>`<div class="src"><p><b>${s.t}</b></p><p class="sub">${s.s}</p><a href="${s.u}" target="_blank" rel="noopener">${s.u}</a></div>`).join('');
   screenHTML(`<span class="tag">任務結束</span>
   <h1>AI 無人機可能被敵方駭客入侵</h1>
@@ -1006,7 +1036,7 @@ function ending(){
   <p><span class="tag ${G.win?'green':'red'}">本局結果：${G.win?'四台失控無人機都被擊落':'直升機被失控無人機擊落'}</span></p>
   <h2>你的五次判斷</h2>
   <table class="rev"><tr><th>#</th><th>地點</th><th>AI 判讀</th><th>你的決定</th><th>實際</th><th></th></tr>${rows}</table>
-  <p style="margin-top:10px">AI 平均信心 <b>${avg}%</b>，五個目標中實際只有 <b>${correct}</b> 個是軍事目標。你攻擊了 <b>${atkN}</b> 次、放棄 <b>${abdN}</b> 次，其中 <b>${civHit}</b> 次打在民用物體上。</p>
+  <p style="margin-top:10px">AI 平均信心 <b>${avg}%</b>，五個目標中實際只有 <b>${correct}</b> 個是軍事目標。你攻擊了 <b>${atkN}</b> 次、放棄 <b>${abdN}</b> 次、逾時 <b>${toN}</b> 次，其中 <b>${civHit}</b> 次打在民用物體上。</p>
   ${G.anomalies.length?`<p class="sub">回想一下：第 2 區之後「獵犬 2 號位置回報異常」、第 4 區之後「無線電連線微弱」。入侵可能早在你攻擊之前就開始了。</p>`:''}
   <h2>想一想</h2>
   <p>1. AI 每次都很有把握，你有哪一次停下來懷疑過？</p>
